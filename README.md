@@ -1,4 +1,6 @@
 # hydroseek-python
+<img width="1254" height="1254" alt="logo" src="https://github.com/user-attachments/assets/3019b4ba-0f52-46ad-ade0-00103d5047e9" />
+
 
 # HydroSeek
 
