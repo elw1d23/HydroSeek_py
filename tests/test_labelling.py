@@ -1,3 +1,4 @@
+import math
 import os
 import numpy as np
 import pandas as pd
@@ -12,7 +13,7 @@ from hydroseek.labelling import (
 )
 
 
-# Fixtures                                                             
+# Fixtures
 
 
 @pytest.fixture
@@ -39,12 +40,12 @@ def populated_table(empty_table):
     return t
 
 
-# create_labels_table                                                  
+# create_labels_table
 
 
 def test_column_count(empty_table):
-    # 3 metadata + 18 labels + 2 suffix = 23 columns
-    assert len(empty_table.columns) == 23
+    # 3 metadata + 18 labels + 3 suffix (Confidence, Comment, Count) = 24
+    assert len(empty_table.columns) == 24
 
 
 def test_metadata_columns_present(empty_table):
@@ -53,8 +54,12 @@ def test_metadata_columns_present(empty_table):
 
 
 def test_suffix_columns_present(empty_table):
-    for col in ["Confidence", "Comment"]:
+    for col in ["Confidence", "Comment", "Count"]:
         assert col in empty_table.columns
+
+
+def test_count_column_last(empty_table):
+    assert list(empty_table.columns)[-1] == "Count"
 
 
 def test_named_labels_used(empty_table):
@@ -79,11 +84,11 @@ def test_all_18_label_columns_exist(sample_labels):
     table  = create_labels_table(labels)
     label_cols = [c for c in table.columns
                   if c not in ["ChunkNo", "StartTime_sec", "EndTime_sec",
-                               "Confidence", "Comment"]]
+                               "Confidence", "Comment", "Count"]]
     assert len(label_cols) == 18
 
 
-# append_row                                                           
+# append_row — without count (default NaN)
 
 
 def test_append_adds_one_row(empty_table):
@@ -92,15 +97,35 @@ def test_append_adds_one_row(empty_table):
     assert len(result) == 1
 
 
+def test_append_count_defaults_to_nan(empty_table):
+    checkboxes = [0] * 18
+    result = append_row(empty_table, 1, 0.0, 5.0, checkboxes, 1, "")
+    assert math.isnan(result.iloc[0]["Count"])
+
+
+def test_append_count_integer_stored(empty_table):
+    checkboxes = [0] * 18
+    result = append_row(empty_table, 1, 0.0, 5.0, checkboxes, 1, "", count=3)
+    assert result.iloc[0]["Count"] == 3
+
+
+def test_append_count_zero_stored(empty_table):
+    """A count of 0 (user pressed + then -) must be stored as 0, not NaN."""
+    checkboxes = [0] * 18
+    result = append_row(empty_table, 1, 0.0, 5.0, checkboxes, 1, "", count=0)
+    assert result.iloc[0]["Count"] == 0
+
+
 def test_append_values_stored_correctly(empty_table):
     checkboxes = [1, 0, 1, 0] + [0] * 14
-    result = append_row(empty_table, 1, 0.0, 5.0, checkboxes, 3, "hello")
+    result = append_row(empty_table, 1, 0.0, 5.0, checkboxes, 3, "hello", count=7)
 
     assert result.iloc[0]["ChunkNo"]       == 1
     assert result.iloc[0]["StartTime_sec"] == pytest.approx(0.0)
     assert result.iloc[0]["EndTime_sec"]   == pytest.approx(5.0)
     assert result.iloc[0]["Confidence"]    == 3
     assert result.iloc[0]["Comment"]       == "hello"
+    assert result.iloc[0]["Count"]         == 7
     assert result.iloc[0]["Boat"]          == 1
     assert result.iloc[0]["Wind"]          == 1
 
@@ -118,8 +143,7 @@ def test_append_wrong_checkbox_count_raises(empty_table):
         append_row(empty_table, 1, 0.0, 5.0, [1, 0], 1, "")
 
 
-
-# remove_last_row                                                      
+# remove_last_row
 
 
 def test_remove_last_row(populated_table):
@@ -138,7 +162,7 @@ def test_remove_preserves_earlier_rows(populated_table):
     assert result.iloc[1]["Comment"] == "frame 1"
 
 
-# fix_chunk_numbering                                                  
+# fix_chunk_numbering
 
 
 def test_chunk_numbers_sequential(populated_table):
@@ -165,9 +189,14 @@ def test_fix_does_not_modify_original(populated_table):
     assert list(populated_table["ChunkNo"]) == original_chunk_no
 
 
-# ------------------------------------------------------------------ #
-# export_labels                                                        #
-# ------------------------------------------------------------------ #
+def test_fix_preserves_count_column(populated_table):
+    """fix_chunk_numbering must not drop the Count column."""
+    fixed = fix_chunk_numbering(populated_table, frame_length_seconds=5.0)
+    assert "Count" in fixed.columns
+
+
+# export_labels
+
 
 def test_export_creates_file(populated_table, tmp_path):
     audio_path = str(tmp_path / "recording.wav")
@@ -187,3 +216,10 @@ def test_export_csv_readable(populated_table, tmp_path):
     loaded     = pd.read_csv(csv_path)
     assert len(loaded) == len(populated_table)
     assert list(loaded.columns) == list(populated_table.columns)
+
+
+def test_export_count_column_present(populated_table, tmp_path):
+    audio_path = str(tmp_path / "recording.wav")
+    csv_path   = export_labels(populated_table, audio_path)
+    loaded     = pd.read_csv(csv_path)
+    assert "Count" in loaded.columns

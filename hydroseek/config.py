@@ -1,8 +1,7 @@
 import pandas as pd
 
-# The canonical ordered list of all config keys.
-# Order matters — it matches the MATLAB export and the supplied
-# hydroseek_config.csv exactly.
+# The rdered list of all config keys.
+# Order matters 
 CONFIG_KEYS = [
     "File_Chunk_No",
     "Frame_Length",

@@ -88,7 +88,7 @@ class AppState:
     labels_table: Optional[pd.DataFrame] = None
 
     # Display                                                              
-    colormap: str = "inferno"   # matplotlib nearest-equivalent to parula
+    colormap: str = "turbo"   # matplotlib nearest-equivalent to parula
 
     def reset_navigation(self) -> None:
         """Call this when loading a new file to clear all runtime state."""
