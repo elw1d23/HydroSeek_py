@@ -87,6 +87,12 @@ class AppState:
    
     labels_table: Optional[pd.DataFrame] = None
 
+    # Event annotation state (point labels and bounding boxes)
+    event_labels_table: Optional[pd.DataFrame] = None
+    annotation_mode: str = "none"        # "none" | "point" | "box"
+    current_event_label: str = ""        # free-text tag typed by the user
+    event_id_counter: int = 0            # increments globally across the session
+
     # Display                                                              
     colormap: str = "turbo"   # matplotlib nearest-equivalent to parula
 
@@ -110,3 +116,7 @@ class AppState:
         self.chunk_number = 0
         self.num_chunks = 0
         self.labels_table = None
+        self.event_labels_table = None
+        self.annotation_mode = "none"
+        self.current_event_label = ""
+        self.event_id_counter = 0

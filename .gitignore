@@ -26,7 +26,12 @@ env/
 
 # Test / dev files
 matlab_mlapp_as_text.txt
-
+HydroSeek_logo2.png
 hydroseek_config_use.csv
+681896__mbari_mars__blue-whale-d-calls-audible-only-with-appropriate-speakers_labels.csv
+hydroseek_config_BW.csv
+681896__mbari_mars__blue-whale-d-calls-audible-only-with-appropriate-speakers.flac
+681896__mbari_mars__blue-whale-d-calls-audible-only-with-appropriate-speakers_Event_labels.csv
+681896__mbari_mars__blue-whale-d-calls-audible-only-with-appropriate-speakers_Event_labels_config.csv
 
 *.log

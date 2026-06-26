@@ -31,6 +31,14 @@ from PyQt6.QtGui import QFont, QPalette, QColor
 from hydroseek.state import AppState
 from spectrogram_canvas import SpectrogramCanvas
 from hydroseek.labelling import append_row, remove_last_row, fix_chunk_numbering, export_labels
+from hydroseek.event_labelling import (
+    create_event_labels_table,
+    append_event,
+    remove_last_event,
+    get_events_for_frame,
+    export_event_labels,
+    export_event_config,
+)
 from hydroseek.audio import pad_chunk, resample_audio
 from hydroseek.signal_processing import overlap_percent_to_samples
 
@@ -58,7 +66,7 @@ _TAB_STYLESHEET = """
     QWidget {
         background-color: #ffffff;
         color: #3a3a3a;
-        font-family: "Arial, Helvetica, sans-serif";
+        font-family: "Arial";
         font-size: 16px;
     }
 
@@ -196,6 +204,11 @@ class LabellingTab(QWidget):
         # because _reset_controls() iterates self._checkboxes.
         self._rebuild_checkbox_panel()
 
+        # Sync annotation canvas colormaps to the current state default so
+        # overlay colours are correct from the very first frame.
+        for canvas in (self._cp_canvas, self._sa_canvas, self._sb_canvas, self._sc_canvas):
+            canvas.set_colormap(self._state.colormap)
+
         self._render_overview()
         self._advance_to_next_frame()
 
@@ -253,7 +266,9 @@ class LabellingTab(QWidget):
         # Context Plot — full width, medium height.
 
         self._cp_canvas = SpectrogramCanvas(
-            parent=self, title="Context", figsize=(14, 3.0), dpi=90, tight=True
+            parent=self, title="Context", figsize=(14, 3.0), dpi=90, tight=True,
+            plot_name="Context",
+            annotation_callback=self._on_annotation_committed,
         )
         self._cp_canvas.setMinimumHeight(200)
         root.addWidget(self._cp_canvas, stretch=3)
@@ -264,9 +279,21 @@ class LabellingTab(QWidget):
         
         spec_row = QHBoxLayout()
         spec_row.setSpacing(4)
-        self._sa_canvas = SpectrogramCanvas(parent=self, title="A", figsize=(5, 3.5), dpi=90)
-        self._sb_canvas = SpectrogramCanvas(parent=self, title="B", figsize=(5, 3.5), dpi=90)
-        self._sc_canvas = SpectrogramCanvas(parent=self, title="C", figsize=(5, 3.5), dpi=90)
+        self._sa_canvas = SpectrogramCanvas(
+            parent=self, title="A", figsize=(5, 3.5), dpi=90,
+            plot_name="A",
+            annotation_callback=self._on_annotation_committed,
+        )
+        self._sb_canvas = SpectrogramCanvas(
+            parent=self, title="B", figsize=(5, 3.5), dpi=90,
+            plot_name="B",
+            annotation_callback=self._on_annotation_committed,
+        )
+        self._sc_canvas = SpectrogramCanvas(
+            parent=self, title="C", figsize=(5, 3.5), dpi=90,
+            plot_name="C",
+            annotation_callback=self._on_annotation_committed,
+        )
         for canvas in (self._sa_canvas, self._sb_canvas, self._sc_canvas):
             canvas.setMinimumHeight(220)
             spec_row.addWidget(canvas, stretch=1)
@@ -299,10 +326,122 @@ class LabellingTab(QWidget):
         # stretch=3 gives checkboxes the most width; they can have many labels.
         outer.addWidget(self._checkbox_container, stretch=3)
 
-        outer.addWidget(self._build_centre_panel(), stretch=2)
-        outer.addWidget(self._build_right_panel(),  stretch=2)
+        outer.addWidget(self._build_centre_panel(),      stretch=2)
+        outer.addWidget(self._build_event_annot_panel(), stretch=2)
+        outer.addWidget(self._build_right_panel(),       stretch=2)
 
         return panel
+
+    def _build_event_annot_panel(self) -> QGroupBox:
+        """
+        Event Annotation tools. Conatined for easy editing
+
+        Layout (compact):
+          MODE label + None / Point / Box radio buttons (one row) - user selects the event type before adding label.
+          Event Label: text entry, stays input so that you can just draw multiple event boxes in one go. 
+          [X]  Events labelled: N   (clear button + count on one row) - press clear button to undo last event label (continuously works)
+          User gets a config.csv saved with the event labels file for reconstructing boundng boxes with the same fft settings.
+        """
+        grp = QGroupBox("Event Annotations")
+        vlay = QVBoxLayout(grp)
+        vlay.setSpacing(5)
+        vlay.setContentsMargins(6, 16, 6, 6)
+
+        # Mode label
+        mode_lbl = QLabel("MODE")
+        mode_lbl.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {_MUTED};")
+        vlay.addWidget(mode_lbl)
+
+        # Mode radio buttons on one row
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(8)
+        self._annot_mode_group = QButtonGroup(self)
+        self._annot_mode_btns: dict[str, QRadioButton] = {}
+        for key, display in (("none", "None"), ("point", "Point"), ("box", "Box")):
+            rb = QRadioButton(display)
+            if key == "none":
+                rb.setChecked(True)
+            self._annot_mode_group.addButton(rb)
+            self._annot_mode_btns[key] = rb
+            mode_row.addWidget(rb)
+        mode_row.addStretch(1)
+        vlay.addLayout(mode_row)
+
+        self._annot_mode_btns["none"].toggled.connect(
+            lambda checked: self._on_annot_mode_changed("none") if checked else None
+        )
+        self._annot_mode_btns["point"].toggled.connect(
+            lambda checked: self._on_annot_mode_changed("point") if checked else None
+        )
+        self._annot_mode_btns["box"].toggled.connect(
+            lambda checked: self._on_annot_mode_changed("box") if checked else None
+        )
+
+        # Event label free-text entry
+        from PyQt6.QtWidgets import QLineEdit
+        label_row = QHBoxLayout()
+        label_lbl = QLabel("Event Label:")
+        label_lbl.setStyleSheet(f"color: {_MUTED};")
+        label_row.addWidget(label_lbl)
+
+        self._event_label_edit = QLineEdit()
+        self._event_label_edit.setFixedHeight(28)
+        self._event_label_edit.setPlaceholderText("e.g. click, whistle...")
+        self._event_label_edit.setStyleSheet(
+            "QLineEdit { background-color: #ffffff; border: 1px solid #4a4a4a; "
+            "border-radius: 3px; color: #3a3a3a; padding: 2px 4px; font-size: 14px; }"
+            "QLineEdit:focus { border-color: #2a7fcf; }"
+        )
+        label_row.addWidget(self._event_label_edit)
+        vlay.addLayout(label_row)
+
+        # Event confidence
+        event_conf_row = QHBoxLayout()
+        event_conf_lbl = QLabel("Confidence:")
+        event_conf_lbl.setStyleSheet(f"color: {_MUTED};")
+        event_conf_row.addWidget(event_conf_lbl)
+        self._event_conf_group = QButtonGroup(self)
+        self._event_conf_btns: list[QRadioButton] = []
+        for val in (1, 2, 3):
+            rb = QRadioButton(str(val))
+            if val == 1:
+                rb.setChecked(True)
+            self._event_conf_group.addButton(rb, val)
+            event_conf_row.addWidget(rb)
+            self._event_conf_btns.append(rb)
+        event_conf_row.addStretch(1)
+        vlay.addLayout(event_conf_row)
+
+        # Clear button (X) and event count on one compact row
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(6)
+
+        self._clear_last_event_btn = QPushButton("X")
+        self._clear_last_event_btn.setFixedSize(28, 28)
+        self._clear_last_event_btn.setToolTip("Clear last placed event annotation")
+        self._clear_last_event_btn.setStyleSheet(
+            "QPushButton { font-size: 14px; font-weight: bold; "
+            "border: 1px solid #4a4a4a; border-radius: 4px; "
+            "background: #2d2d2d; color: #e0e0e0; }"
+            "QPushButton:hover { background: #383838; }"
+            "QPushButton:pressed { background: #222222; }"
+        )
+        self._clear_last_event_btn.clicked.connect(self._on_clear_last_event)
+        bottom_row.addWidget(self._clear_last_event_btn)
+
+        count_lbl = QLabel("Events labelled:")
+        count_lbl.setStyleSheet(f"color: {_MUTED}; font-size: 13px;")
+        self._event_count_display = QLabel("0")
+        self._event_count_display.setStyleSheet(
+            "font-size: 16px; font-weight: bold; color: #3a3a3a;"
+        )
+        bottom_row.addWidget(count_lbl)
+        bottom_row.addWidget(self._event_count_display)
+        bottom_row.addStretch(1)
+        vlay.addLayout(bottom_row)
+
+        vlay.addStretch(1)
+        return grp
 
     # Dynamic checkbox panel
     # adds the checkboxes that the labeller set rather than just havign all 18 like in the matlab veriosn
@@ -311,21 +450,16 @@ class LabellingTab(QWidget):
     def _rebuild_checkbox_panel(self) -> None:
         """
         Build (or rebuild) the checkbox grid from the currently active labels.
-
         
-        The user may change label names and press Start again.  Rebuilding
-        from scratch is simpler and safer than trying to diff the old list.
+        The user may change label names and press Start again.  
+        Rebuilding from scratch is safer than trying to diff the old list.
 
-        WHAT counts as an "active" label?
         Any entry in state.labels that is non-empty AND does not start with
-        "NA_".  NA_ is the sentinel AppState uses for blank slots.
+        "NA_".  
 
         IMPORTANT — checkbox_values contract:
-        append_row() expects one value per label *column in labels_table*,
-        which was created from the full 18-slot list (including NA_ slots).
-        So in _on_next_frame we pad the visible checkbox values back out to
-        the full 18 with zeros for the hidden slots.  This is why
-        self._active_label_count tracks how many checkboxes were built.
+        apppend_row expects 1 value per label column in labels_table. So its only created with the number of active labels
+        set by the user as labels column. The checkboxes are in the same order and count, no padding used. 
         """
         # Remove all existing widgets from the container's layout.
         layout = self._checkbox_container.layout()
@@ -369,14 +503,12 @@ class LabellingTab(QWidget):
         small_font = QFont()
         small_font.setPointSize(12)
 
-        for seq, (original_idx, lbl_text) in enumerate(active_labels):
+        for seq, (_, lbl_text) in enumerate(active_labels):
             # QCheckBox with the label text built in — one widget per label.
             
             cb = QCheckBox(lbl_text)
             cb.setFont(small_font)
-            # Store the original index so we can reconstruct the full-18
-            # checkbox_values list in _on_next_frame.
-            cb.setProperty("original_index", original_idx)
+ 
 
             col = seq // col_size
             row = seq % col_size
@@ -529,9 +661,9 @@ class LabellingTab(QWidget):
         self._next_btn.setFont(bold_font)
         self._next_btn.setStyleSheet(
             f"QPushButton {{ background-color: {_ACCENT}; color: white; "
-            "border: none; border-radius: 4px; }}"
-            f"QPushButton:hover {{ background-color: {_ACCENT_HOV}; }}"
-            "QPushButton:disabled { background-color: #444; color: #888; }"
+            f"border: none; border-radius: 4px; }} "
+            f"QPushButton:hover {{ background-color: {_ACCENT_HOV}; }} "
+            f"QPushButton:disabled {{ background-color: #444; color: #888; }}"
         )
         self._next_btn.clicked.connect(self._on_next_frame)
         action_row.addWidget(self._next_btn, stretch=1)
@@ -555,10 +687,10 @@ class LabellingTab(QWidget):
             btn.setFixedHeight(26)
             btn.setCheckable(True)
             btn.setStyleSheet(
-                "QPushButton { font-size: 11px; padding: 1px 3px; "
-                "border: 1px solid #4a4a4a; border-radius: 3px; }"
+                f"QPushButton {{ font-size: 11px; padding: 1px 3px; "
+                f"border: 1px solid #4a4a4a; border-radius: 3px; }} "
                 f"QPushButton:checked {{ background-color: {_ACCENT}; "
-                "color: white; border-color: transparent; }}"
+                f"color: white; border-color: transparent; }}"
             )
             btn.clicked.connect(lambda checked=False, cm=cmap: self._on_colormap(cm))
             self._cmap_buttons[cmap] = btn
@@ -574,28 +706,103 @@ class LabellingTab(QWidget):
         return grp
 
 
-    # ALL Button callbacks
+    # Event annotation callbacks
 
+    def _on_annot_mode_changed(self, mode: str) -> None:
+        """Propagate mode change to all four annotation canvases."""
+        self._state.annotation_mode = mode
+        for canvas in (self._cp_canvas, self._sa_canvas, self._sb_canvas, self._sc_canvas):
+            canvas.set_annotation_mode(mode)
+
+    def _on_annotation_committed(self, data: dict) -> None:
+        """
+        Called by a SpectrogramCanvas when the user completes a point click
+        or finishes dragging a box.
+
+        Reads current frame context from AppState, increments the event ID
+        counter, appends the row to event_labels_table, redraws overlays on
+        all canvases, and updates the event count display.
+        """
+        s = self._state
+        if s.event_labels_table is None:
+            return
+
+        label   = self._event_label_edit.text().strip()
+        event_conf = self._event_conf_group.checkedId()
+        comment = self._comments_edit.toPlainText().strip()
+
+        s.event_id_counter += 1
+
+        ev_type = data["type"]
+        x0 = data["x0"]
+        y0 = data["y0"]
+        x1 = data.get("x1")
+        y1 = data.get("y1")
+
+        s.event_labels_table = append_event(
+            table          = s.event_labels_table,
+            event_id       = s.event_id_counter,
+            event_type     = ev_type,
+            plot           = data["plot"],
+            chunk_idx  = self._big_chunk_idx,
+            frame_no       = s.current_chunk_index,
+            frame_start    = s.start_time,
+            frame_end      = s.end_time,
+            event_time     = x0,
+            event_time_end = x1,
+            freq_low       = y0,
+            freq_high      = y1,
+            label          = label,
+            confidence     = event_conf,
+            comment        = comment,
+        )
+
+        self._refresh_annotation_overlays()
+        self._update_event_count_display()
+
+    def _on_clear_last_event(self) -> None:
+        """Remove the most recently placed event and refresh overlays."""
+        s = self._state
+        if s.event_labels_table is None or len(s.event_labels_table) == 0:
+            return
+        s.event_id_counter = max(0, s.event_id_counter - 1)
+        s.event_labels_table = remove_last_event(s.event_labels_table)
+        self._refresh_annotation_overlays()
+        self._update_event_count_display()
+
+    def _refresh_annotation_overlays(self) -> None:
+        """
+        Redraw stored event annotations on all four labelling canvases for
+        the current frame.  Called after every append, clear, or frame change.
+        """
+        s = self._state
+        if s.event_labels_table is None:
+            return
+        events = get_events_for_frame(
+            s.event_labels_table, self._big_chunk_idx, s.current_chunk_index
+        )
+        for canvas in (self._cp_canvas, self._sa_canvas, self._sb_canvas, self._sc_canvas):
+            canvas.draw_annotations(events)
+
+    def _update_event_count_display(self) -> None:
+        """Update the events-this-frame counter label."""
+        s = self._state
+        if s.event_labels_table is None:
+            self._event_count_display.setText("0")
+            return
+        events = get_events_for_frame(
+            s.event_labels_table, self._big_chunk_idx, s.current_chunk_index
+        )
+        self._event_count_display.setText(str(len(events)))
+
+    # ALL Button callbacks
 
     def _on_next_frame(self) -> None:
         s = self._state
 
-        # Reconstruct the full 18-value checkbox list.
+        # Reconstruct label checkbox list.
         #
-        # The labels_table has columns for ALL 18 labels (including NA_ ones),
-        # because create_labels_table() was called with the full state.labels
-        # list.  We only built checkboxes for the active (non-NA) labels,
-        # soto pad the result back to 18 values.
-        #
-
-        n_label_cols = (
-            len(s.labels_table.columns) - 3 - 3  # 3 metadata + 3 suffix cols
-        )
-        checkbox_values = [0] * n_label_cols
-        for cb in self._checkboxes:
-            orig_idx = cb.property("original_index")
-            if orig_idx is not None and orig_idx < n_label_cols:
-                checkbox_values[orig_idx] = 1 if cb.isChecked() else 0
+        checkbox_values = [1 if cb.isChecked() else 0 for cb in self._checkboxes]
 
         confidence = self._conf_group.checkedId()
         comment    = self._comments_edit.toPlainText().strip()
@@ -673,7 +880,6 @@ class LabellingTab(QWidget):
     def _on_colormap(self, cmap: str) -> None:
         """Switch colormap on all canvases and update button highlight."""
         self._state.colormap = cmap
-        # Uncheck every button, then check only the one that was clicked.
         for key, btn in self._cmap_buttons.items():
             btn.setChecked(key == cmap)
         for canvas in (
@@ -682,6 +888,12 @@ class LabellingTab(QWidget):
             self._large_spec_canvas,
         ):
             canvas.update_colormap(cmap)
+        # Keep annotation canvases aware of the new colormap so overlay
+        # colours update to remain visible against the new palette.
+        for canvas in (self._cp_canvas, self._sa_canvas, self._sb_canvas, self._sc_canvas):
+            canvas.set_colormap(cmap)
+        # Refresh overlays immediately so existing annotations redraw in the new colour.
+        self._refresh_annotation_overlays()
 
 
     # Frame rendering
@@ -712,8 +924,16 @@ class LabellingTab(QWidget):
                 s.start_index + s.frame_size - 1, len(s.current_chunk) - 1
             )
 
-        s.start_time = round(s.start_index / s.fs)
-        s.end_time   = round(s.end_index   / s.fs)
+        # Cumulative time offset: sum the duration of all preceding big chunks
+        # so that start_time / end_time are absolute positions in the file,
+        # not relative to the start of the current chunk.
+        chunk_time_offset = sum(
+            len(s.audio_chunks[i]) / s.fs
+            for i in range(self._big_chunk_idx)
+        )
+
+        s.start_time = round(s.start_index / s.fs + chunk_time_offset)
+        s.end_time   = round(s.end_index   / s.fs + chunk_time_offset)
 
         ds_frame_size      = int(s.label_frame_length * s.target_fs)
         s.down_start_index = (frame_idx - 1) * ds_frame_size
@@ -811,6 +1031,20 @@ class LabellingTab(QWidget):
         frame_t0 = (s.start_index - ctx_start_sample) / s.fs
         frame_t1 = frame_t0 + s.label_frame_length
 
+        # Compute the absolute file time at x=0 for each canvas so that
+        # click coordinates can be converted to absolute times when stored.
+        chunk_time_offset = sum(
+            len(s.audio_chunks[i]) / s.fs
+            for i in range(self._big_chunk_idx)
+        )
+        cp_time_offset  = chunk_time_offset + ctx_start_sample / s.fs
+        abc_time_offset = float(s.start_time)   # already absolute after fix
+
+        self._cp_canvas.set_time_offset(cp_time_offset)
+        self._sa_canvas.set_time_offset(abc_time_offset)
+        self._sb_canvas.set_time_offset(abc_time_offset)
+        self._sc_canvas.set_time_offset(abc_time_offset)
+
         self._cp_canvas.render(
             signal          = s.current_plot_chunk,
             fs              = s.fs,
@@ -883,6 +1117,10 @@ class LabellingTab(QWidget):
             hide_y_labels   = True,
         )
 
+        # Redraw persisted event annotations for the newly displayed frame.
+        self._refresh_annotation_overlays()
+        self._update_event_count_display()
+
     # UI state helpers
 
 
@@ -894,6 +1132,8 @@ class LabellingTab(QWidget):
         self._comments_edit.clear()
         self._counter_value = float("nan")
         self._counter_display.setText("")
+        # Annotation mode intentionally preserved across frame navigation —
+        # the user keeps their selected tool (None / Point / Box) active.
 
     def _update_progress_display(self) -> None:
         s = self._state
@@ -919,11 +1159,22 @@ class LabellingTab(QWidget):
             )
             return
 
-        QMessageBox.information(
-            self,
-            "Labelling Complete",
-            f"All frames labelled.\nLabels saved to:\n{csv_path}",
-        )
+        # Export event labels (point + box annotations).
+        event_csv_path = None
+        if s.event_labels_table is not None:
+            try:
+                event_csv_path = export_event_labels(s.event_labels_table, s.audio_file_path)
+            except Exception as exc:
+                QMessageBox.warning(
+                    self, "Export Warning",
+                    f"Frame labels saved, but failed to write event labels:\n{exc}"
+                )
+
+        msg = f"All frames labelled.\nLabels saved to:\n{csv_path}"
+        if event_csv_path:
+            msg += f"\nEvent labels saved to:\n{event_csv_path}"
+
+        QMessageBox.information(self, "Labelling Complete", msg)
 
         s.reset_navigation()
         self._next_btn.setEnabled(True)

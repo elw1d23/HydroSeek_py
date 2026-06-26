@@ -12,12 +12,9 @@ SUFFIX_COLUMNS   = ["Confidence", "Comment", "Count"]
 def create_labels_table(labels: list[str]) -> pd.DataFrame:
     """
     Initialise an empty DataFrame with the correct column structure.
-
-    Equivalent to MATLAB LabelTableCreator nested function.
-
-    Empty label strings are replaced with NA_1, NA_2, etc. so the
-    CSV always has meaningful column headers even if the user left
-    some label fields blank during setup.
+    Now pulls the number of label fields entered by the user upon config set up (setup_tab.py)
+    Removing the balnk rows occuring in the output csv file. If the user sets 3 labels, the table has 3 labels columns
+    not 18 as before. 
 
     Parameters
     ----------
@@ -30,8 +27,8 @@ def create_labels_table(labels: list[str]) -> pd.DataFrame:
         <label_1>, ..., <label_18>,
         Confidence, Comment, Count
     """
-    sanitised = _sanitise_labels(labels)
-    columns   = METADATA_COLUMNS + sanitised + SUFFIX_COLUMNS
+    active = [lbl for lbl in labels if lbl and not lbl.startswith("NA_")]
+    columns = METADATA_COLUMNS + active + SUFFIX_COLUMNS
     print(f"Labelling table initialised with {len(columns)} columns.")
     return pd.DataFrame(columns=columns)
 

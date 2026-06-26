@@ -33,6 +33,7 @@ from hydroseek.state import AppState
 from hydroseek.audio import load_audio, chunk_audio, resample_audio, check_existing_labels, get_audio_info
 from hydroseek.config import load_config, export_config, config_to_state_kwargs
 from hydroseek.labelling import create_labels_table
+from hydroseek.event_labelling import create_event_labels_table, export_event_config
 from hydroseek.signal_processing import overlap_percent_to_samples
 
 
@@ -48,7 +49,7 @@ _CTRL_H   = 28   # minimum height for all interactive controls
 _SETUP_STYLESHEET = (
     # QWidget base
     "QWidget {"
-    "  font-family: Arial, Helvetica, sans-serif;"
+    "  font-family: Arial;"
     f" font-size: {_BODY_PX}px;"
     "  color: #3a3a3a;"
     "  background-color: #ffffff;"
@@ -774,6 +775,16 @@ class SetupTab(QWidget):
         s.num_chunks           = 0
 
         s.labels_table = create_labels_table(s.labels)
+
+        # Initialise event labels table and write the config CSV immediately
+        # so the spectrogram settings are recorded even if the session is aborted.
+        s.event_labels_table = create_event_labels_table()
+        s.event_id_counter   = 0
+        s.annotation_mode    = "none"
+        try:
+            export_event_config(s, audio_path)
+        except Exception as exc:
+            print(f"Warning: could not write event config CSV: {exc}")
 
         print(
             f"Audio loaded: {fs} Hz, {s.audio_length:.1f} s, "

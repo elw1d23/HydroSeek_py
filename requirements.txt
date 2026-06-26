@@ -1,3 +1,4 @@
+audioop-lts==0.2.2
 audioread==3.1.0
 certifi==2026.5.20
 cffi==2.0.0
@@ -7,6 +8,7 @@ cycler==0.12.1
 decorator==5.3.1
 fonttools==4.63.0
 idna==3.15
+iniconfig==2.3.0
 joblib==1.5.3
 kiwisolver==1.5.0
 lazy-loader==0.5
@@ -20,12 +22,15 @@ packaging==26.2
 pandas==3.0.3
 pillow==12.2.0
 platformdirs==4.9.6
+pluggy==1.6.0
 pooch==1.9.0
 pycparser==3.0
+Pygments==2.20.0
 pyparsing==3.3.2
 PyQt6==6.11.0
 PyQt6-Qt6==6.11.1
 PyQt6_sip==13.11.1
+pytest==9.1.1
 python-dateutil==2.9.0.post0
 requests==2.34.2
 scikit-learn==1.8.0
@@ -34,6 +39,9 @@ six==1.17.0
 sounddevice==0.5.5
 soundfile==0.13.1
 soxr==1.1.0
+standard-aifc==3.13.0
+standard-chunk==3.13.0
+standard-sunau==3.13.0
 threadpoolctl==3.6.0
 typing_extensions==4.15.0
 urllib3==2.7.0

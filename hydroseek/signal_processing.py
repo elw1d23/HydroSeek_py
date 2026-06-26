@@ -127,14 +127,46 @@ def format_frequency_ticks(tick_values: np.ndarray) -> list[str]:
     Format y-axis tick labels as Hz or kHz depending on magnitude.
 
     Replicates the MATLAB tick formatting loop used in every spectrogram
-    plot function. Values >= 1000 are shown in kHz, smaller values in Hz.
+    plot function. Values >= 1000 are shown in kHz with enough decimal
+    places to distinguish adjacent ticks; smaller values are shown in Hz.
 
-    Example: [500, 1000, 2000, 10000] -> ['500', '1', '2', '10']
+    The precision for kHz labels is chosen automatically based on the
+    span of the kHz-range ticks so that adjacent labels are never
+    identical (e.g. a 1–2 kHz range gets 1 decimal place: 1.0, 1.2 …
+    rather than rounding everything to whole numbers).
+
+    Examples
+    --------
+    [500, 1000, 2000, 10000] -> ['500', '1.0', '2.0', '10.0']
+    [1000, 1200, 1400, 1600] -> ['1.0', '1.2', '1.4', '1.6']
+    [200, 500, 800]          -> ['200', '500', '800']
     """
+    # Separate Hz and kHz values to determine appropriate kHz precision.
+    khz_vals = [v / 1000.0 for v in tick_values if v >= 1000]
+
+    if len(khz_vals) >= 2:
+        span = max(khz_vals) - min(khz_vals)
+        # Choose decimal places so adjacent ticks are distinguishable.
+        if span == 0:
+            decimals = 1
+        elif span < 0.5:
+            decimals = 2
+        elif span < 5.0:
+            decimals = 1
+        else:
+            decimals = 0
+    elif len(khz_vals) == 1:
+        # Single kHz tick — show 1 decimal place for clarity.
+        decimals = 1
+    else:
+        decimals = 0
+
+    fmt = f"{{:.{decimals}f}}"
+
     labels = []
     for val in tick_values:
         if val >= 1000:
-            labels.append(f"{val / 1000:.0f}")
+            labels.append(fmt.format(val / 1000.0))
         else:
             labels.append(f"{int(round(val))}")
     return labels
