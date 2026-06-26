@@ -19,19 +19,34 @@ Python 3.11+
 
 ## Installation
 
+## Installation
+
 To use the code, follow these steps:
 
-Clone the repository:
-'git clone https://github.com/elw1d23/HydroSeek_py.git'
+1. Clone the repository:
 
+```bash
+git clone https://github.com/elw1d23/HydroSeek_py.git
 cd HydroSeek_py
+```
 
-Create a virtual environment and activate it:
-'python -m venv hydro_env'
-'source hydro_env/bin/activate' # On Windows use `hydro_env\Scripts\activate`
+2. Create and activate a virtual environment:
 
-Install the required packages:
-'pip install -r requirements.txt'
+```bash
+python -m venv hydro_env
+
+# macOS/Linux
+source hydro_env/bin/activate
+
+# Windows
+hydro_env\Scripts\activate
+```
+
+3. Install the required packages:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Running
 
