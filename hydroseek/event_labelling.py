@@ -5,11 +5,9 @@ Handles point labels and bounding-box (rectangle) annotations placed
 directly on the Context, A, B and C spectrogram canvases.
 
 Kept intentionally separate from labelling.py so the two output tables
-(frame labels and event labels) have independent, clean modules.
+(frame labels and event labels) have independent modules.
 
-Public API
-----------
-create_event_labels_table()     -> pd.DataFrame  (empty, correct schema)
+create_event_labels_table()     -> pd.DataFrame  9empty)
 append_event(...)               -> pd.DataFrame  (new row added)
 remove_last_event(...)          -> pd.DataFrame  (last row dropped)
 get_events_for_frame(...)       -> pd.DataFrame  (filtered by ChunkNo)
@@ -39,7 +37,7 @@ EVENT_COLUMNS = [
     "Comment",
 ]
 
-# Column order for the companion config CSV.
+# Column order for the config CSV.
 CONFIG_COLUMNS = ["Parameter", "Value"]
 
 
@@ -74,7 +72,7 @@ def append_event(
     Append one event row and return the updated DataFrame.
 
     Parameters
-    ----------
+    
     event_id        : globally unique integer for this session (from AppState)
     event_type      : "point" or "box"
     plot            : "Context", "A", "B", or "C"
@@ -115,7 +113,6 @@ def remove_last_event(table: pd.DataFrame) -> pd.DataFrame:
     """
     Drop the most recently appended event row.
 
-    Returns the table unchanged if it is already empty.
     """
     if len(table) == 0:
         return table
@@ -161,10 +158,7 @@ def export_event_config(state, audio_filepath: str) -> str:
     The config is written once at session start so the exact spectrogram
     settings used during annotation can always be reconstructed later.
 
-    Parameters
-    ----------
-    state          : AppState instance (read-only)
-    audio_filepath : path to the audio file being labelled
+    
     """
     directory = os.path.dirname(os.path.abspath(audio_filepath))
     stem      = os.path.splitext(os.path.basename(audio_filepath))[0]

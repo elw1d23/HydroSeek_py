@@ -25,8 +25,7 @@ _POINT_SIZE  = 80     # scatter marker area in points^2
 
 # Per-colormap annotation colours chosen for maximum visibility.
 # Each entry is (stroke_colour, text_colour).  Stroke is used for the
-# marker X, rectangle edge and label text; they are always the same here
-# but kept separate in case a future theme needs them to differ.
+# marker X, rectangle edge and label text
 _CMAP_ANNOTATION_COLOURS: dict[str, tuple[str, str]] = {
     "turbo":    ("#ffffff", "#ffffff"),   # white stands out on the rainbow
     "inferno":  ("#00ffcc", "#00ffcc"),   # cyan-green on dark purple/orange
@@ -54,11 +53,11 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         "point" — single click places a point label
         "box"   — click-drag places a bounding-box rectangle
 
-    When the user completes an annotation, annotation_callback is called with
+    annotation_callback is called with
     a dict describing the event.  The LabellingTab wires this up so it can
     write the event into AppState without the canvas knowing about state.
 
-    Stored annotation artists are redrawn after every render() call via
+    Stored annotations are redrawn after every render() call via
     draw_annotations(), which accepts the list of event dicts for the current
     frame from AppState.
     """
@@ -96,16 +95,12 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
 
         self._ax.set_facecolor("#ffffff")
 
-    # ------------------------------------------------------------------
-    # Annotation public API
-    # ------------------------------------------------------------------
 
+    # Annotation public API
     def set_annotation_mode(self, mode: str) -> None:
         """
         Switch between "none", "point" and "box" interaction modes.
 
-        Disconnects any existing mpl event listeners before reconnecting so
-        there is never more than one handler wired at a time.
         """
         self._annotation_mode = mode
         self._disconnect_events()
@@ -121,10 +116,8 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
 
     def set_colormap(self, colormap: str) -> None:
         """
-        Notify the canvas which colormap is currently active so annotation
-        overlays can pick a contrasting colour automatically.
-
         Called by LabellingTab._on_colormap() alongside update_colormap().
+
         """
         self._current_colormap = colormap
 
@@ -146,7 +139,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         """
         Redraw stored annotation artists for the given list of event dicts.
 
-        Call this after every render() so persisted annotations are visible
+        Calls after every render() so existing annotations are visible
         when returning to a previously labelled frame.  Clears any existing
         overlay artists first.
         """
@@ -206,9 +199,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         self._clear_annotation_artists()
         self.draw_idle()
 
-    # ------------------------------------------------------------------
     # Mouse event handlers (internal)
-    # ------------------------------------------------------------------
 
     def _on_press(self, event) -> None:
         if event.inaxes is not self._ax:
@@ -258,7 +249,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
 
         x1_rel, y1 = event.xdata, event.ydata
 
-        # Convert canvas-relative x coordinates to absolute file times.
+        # Convert x coordinates to absolute file times.
         x0 = x0_rel + self._time_offset
         x1 = x1_rel + self._time_offset
 
@@ -266,8 +257,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
             return
 
         if self._annotation_mode == "point":
-            # Use press coordinates for point labels (more precise than release
-            # when the user barely moves the mouse).
+            # Use press coordinates for point labels 
             self._annotation_callback({
                 "type":  "point",
                 "plot":  self._plot_name,
@@ -288,9 +278,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
                 "y1":    max(y0, y1),
             })
 
-    # ------------------------------------------------------------------
     # Internal helpers
-    # ------------------------------------------------------------------
 
     def _disconnect_events(self) -> None:
         for cid in self._mpl_cids:
@@ -313,9 +301,8 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
                 pass
         self._annotation_artists = []
 
-    # ------------------------------------------------------------------
-    # Public API (spectrogram rendering)
-    # ------------------------------------------------------------------
+
+    # Spectrogram rendering
 
     def render(
         self,
@@ -333,7 +320,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         hide_y_labels: bool = False,
     ) -> None:
         """
-        Compute and display a spectrogram.
+        Compute and display spectrogram.
 
         Colour scaling
         dr_high and dr_low are treated as offsets (in dB) relative to the
@@ -410,21 +397,17 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
                     ax.axvline(x=mt, color="black", linewidth=1.5,
                                linestyle="-", alpha=0.85)
 
-        # Axis labels and ticks — use the user-configured f_min/f_max as the
-        # tick anchor range, not the raw spectrogram bin values (f_lo/f_hi).
-        # f_lo/f_hi are the nearest computed bins to f_min/f_max and are never
-        # round numbers (e.g. 31 Hz, 109 Hz), which makes axis labels unreadable.
+        # Axis labels and ticks use the user-configured f_min/f_max as the
+        # tick range, not the raw spectrogram bin values (f_lo/f_hi).
+
         self._apply_freq_ticks(ax, f_min, f_max, f_max, log_scale=use_mel)
         ax.set_xlabel("Time (s)", fontsize=10)
         ax.set_ylabel(get_frequency_axis_label(f_max), fontsize=8)
         ax.set_title(self._title, fontsize=10, pad=2, color='#3a3a3a')
         ax.tick_params(labelsize=10)
 
-        # The large overview spectrogram is too short (< 100 px) for y-axis
-        # tick labels to be readable.  When hide_y_labels=True, suppress them
+        #  hide_y_labels=True, suppress them
         # entirely so the extra horizontal space goes to the signal image.
-        # All other canvases (CP, A, B, C) call render() without this flag
-        # so they are completely unaffected.
         if hide_y_labels:
             ax.set_yticks([])
             ax.set_ylabel("")
@@ -441,7 +424,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         marker_time: float | None = None,
     ) -> None:
         """
-        Display a waveform overview with an optional position marker.
+        Display a waveform overview with a position marker.
 
         """
         ax = self._ax
@@ -455,7 +438,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         duration = len(signal) / fs
         times    = np.linspace(0.0, duration, len(signal))
 
-        ax.plot(times, signal, color="#3a3a3a", linewidth=0.25, rasterized=True)
+        ax.plot(times, signal, color="#7067d9", linewidth=0.25, rasterized=True)
 
         peak_val = float(np.percentile(np.abs(signal), 99))
         if peak_val == 0.0:
@@ -529,12 +512,11 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
         else:
             # Linear ticks at sensible round values, always anchored at f_lo.
             #
-            # Strategy:
-            #   1. Include f_lo as the first tick so low frequencies are never
+            #   Include f_lo as the first tick so low frequencies are never
             #      skipped (e.g. 20 Hz on plot C, 10 Hz on plot A).
-            #   2. Choose a clean step size (1, 2, 2.5, 5, 10 × a power of 10)
+            #   Choose a clean step size (1, 2, 2.5, 5, 10 × a power of 10)
             #      that produces roughly 6-8 additional ticks up to f_hi.
-            #   3. Generate subsequent ticks at the first round multiple of
+            #   Generate subsequent ticks at the first round multiple of
             #      that step above f_lo, then every step until f_hi.
             span = f_hi - f_lo
             target_intervals = n_ticks - 1     # gaps between n_ticks ticks
@@ -557,7 +539,7 @@ class SpectrogramCanvas(FigureCanvasQTAgg):
                     ticks.append(t)
                 t += nice_step
 
-            # Safety: always fall back to plain linspace if something went wrong.
+            # Always fall back to plain linspace if something went wrong.
             if len(ticks) < 2:
                 ticks = np.linspace(f_lo, f_hi, n_ticks).tolist()
 

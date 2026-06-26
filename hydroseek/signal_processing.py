@@ -17,18 +17,15 @@ def compute_spectrogram(
         [S, frq, tm] = spectrogram(chunk, hann(windowsize), overlap_samples, [], fs, 'yaxis')
         S = 20 * log10(abs(S))
 
-    The nfft argument is left equal to window_size (MATLAB behaviour when
-    you pass [] as the nfft argument).
+    The nfft argument is left equal to window_size 
 
     Parameters
-    ----------
     signal          : 1-D float64 array
     fs              : sample rate in Hz
     window_size     : FFT window length in samples
     overlap_samples : number of samples of overlap between windows
 
     Returns
-    -------
     S_db    : (n_freqs, n_times) array in dB
     freqs   : frequency axis in Hz
     times   : time axis in seconds
@@ -72,7 +69,7 @@ def compute_mel_spectrogram(
     matching the MATLAB convention: hop = window_size - overlap_samples.
 
     Parameters
-    ----------
+   
     signal          : 1-D float64 array
     fs              : sample rate in Hz
     window_size     : analysis window length in samples
@@ -80,7 +77,6 @@ def compute_mel_spectrogram(
     n_mels          : number of mel filter banks (128 matches MATLAB default)
 
     Returns
-    -------
     S_mel_db : (n_mels, n_times) array in dB
     mel_freqs: centre frequency of each mel band in Hz
     times    : time axis in seconds
@@ -112,12 +108,8 @@ def compute_mel_spectrogram(
 
 def overlap_percent_to_samples(overlap_percent: float, window_size: int) -> int:
     """
-    Convert a percentage overlap to a sample count.
+    Convert ercentage overlap to a sample count.
 
-    This is how the MATLAB app stores overlap in the UI (as a percentage)
-    but needs it internally as a sample count for spectrogram calls.
-
-    Example: 75% overlap with a 2048-sample window = 1536 samples.
     """
     return int(round((overlap_percent / 100.0) * window_size))
 
@@ -125,15 +117,6 @@ def overlap_percent_to_samples(overlap_percent: float, window_size: int) -> int:
 def format_frequency_ticks(tick_values: np.ndarray) -> list[str]:
     """
     Format y-axis tick labels as Hz or kHz depending on magnitude.
-
-    Replicates the MATLAB tick formatting loop used in every spectrogram
-    plot function. Values >= 1000 are shown in kHz with enough decimal
-    places to distinguish adjacent ticks; smaller values are shown in Hz.
-
-    The precision for kHz labels is chosen automatically based on the
-    span of the kHz-range ticks so that adjacent labels are never
-    identical (e.g. a 1–2 kHz range gets 1 decimal place: 1.0, 1.2 …
-    rather than rounding everything to whole numbers).
 
     Examples
     --------

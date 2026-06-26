@@ -70,7 +70,7 @@ class AppState:
     down_start_index: int = 0
     down_end_index: int = 0
 
-    # Counters — match MATLAB naming exactly to ease cross-referencing
+    # Counters 
     current_chunk_index: int = 0   # frame index within current big chunk
     current_frame_number: int = 0  # global frame counter across all chunks
     chunk_number: int = 0          # total frames in current big chunk

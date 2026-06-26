@@ -17,11 +17,10 @@ def create_labels_table(labels: list[str]) -> pd.DataFrame:
     not 18 as before. 
 
     Parameters
-    ----------
+
     labels : list of up to 18 label strings from the setup UI
 
     Returns
-    -------
     Empty DataFrame with columns:
         ChunkNo, StartTime_sec, EndTime_sec,
         <label_1>, ..., <label_18>,
@@ -47,13 +46,7 @@ def append_row(
     Add a single labelled frame to the table.
 
     Called once per frame, immediately after the user clicks
-    'Load Next Frame'.  The checkbox_values list must be the same
-    length as the number of label columns in the table (up to 18),
-    with 1 for checked and 0 for unchecked.
-
-    count is NaN if the user never touched the counter on this frame,
-    or an integer value if + or - was pressed at least once — matching
-    the MATLAB CounterValue logic exactly.
+    'Load Next Frame'.  
 
     Returns a new DataFrame (pandas concat creates a new object,
     it does not modify in place).
@@ -88,15 +81,8 @@ def fix_chunk_numbering(
     """
     Renumber ChunkNo sequentially and recalculate start/end times.
 
-    Equivalent to MATLAB fixChunkNumbering nested function.
-
-    The labelling loop increments a frame counter that resets on each
-    big chunk, so the ChunkNo column collected during labelling is not
-    a clean 1, 2, 3, ... sequence. This function corrects that at
-    export time.
 
     Parameters
-    ----------
     table                : the completed labels DataFrame
     frame_length_seconds : the label frame length set by the user (e.g. 5.0)
     """
@@ -127,9 +113,9 @@ def export_labels(table: pd.DataFrame, audio_filepath: str) -> str:
 
 # Internal helpers
 
-
+#no longer used as I removed the NaN logic and table defaulting to 18 columns
 def _sanitise_labels(labels: list[str]) -> list[str]:
-    """Replace blank entries with NA_1, NA_2, etc."""
+    
     result     = []
     na_counter = 1
     for lbl in labels:

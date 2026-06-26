@@ -1,7 +1,6 @@
 """
 SetupTab — PyQt6 widget for the HydroSeek Set Up tab.
 
-Mirrors the MATLAB HydroSeekSetUpTab exactly:
     - Audio file picker (wav / mp3 / flac)
     - Load config CSV button / Export config CSV button
     - Spectrogram parameters: Context Plot, Spec A, Spec B, Spec C
@@ -10,12 +9,12 @@ Mirrors the MATLAB HydroSeekSetUpTab exactly:
     - Start button
 
 On Start:
-    1. Reads all fields into AppState
-    2. Calls audio.load_audio + audio.chunk_audio
-    3. Calls audio.resample_audio for the downsampled signal
-    4. Calls labelling.create_labels_table
-    5. Computes overlap sample counts for all four spectrograms
-    6. Calls main_window.switch_to_labelling()
+     Reads all fields into AppState
+     Calls audio.load_audio + audio.chunk_audio
+    Calls audio.resample_audio for the downsampled signal
+    Calls labelling.create_labels_table
+    Computes overlap sample counts for all four spectrograms
+    Calls main_window.switch_to_labelling()
 """
 
 import os
@@ -363,7 +362,7 @@ class SetupTab(QWidget):
 
         # Scale to fit the label's fixed size, preserving aspect ratio.
         # SmoothTransformation applies antialiasing so the image looks
-        # sharp even when scaled down significantly.
+        # sharp
         scaled = pixmap.scaled(
             self._logo_label.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
@@ -668,20 +667,20 @@ class SetupTab(QWidget):
         """
         Calculate whether the current duration / chunk / frame settings
         will result in audio being excluded from labelling, and if so
-        show an informative warning.
+        show a warning.
 
         Returns True if the user wants to proceed, False if they cancel.
 
         Two truncation effects are checked:
 
-        1. Sub-frame tail  — audio that is shorter than one full frame
-           at the very end of the file.  e.g. 9.7 min file with 60 s
-           frames: 9*60 = 540 s used, 9.7*60 - 540 = 42 s tail.
-           This tail ends up inside the last chunk as trailing samples
-           that pad_chunk() will zero-pad for spectrogram display but
-           which will NOT receive their own label row.
+        frame tail  — audio that is shorter than one full frame
+        at the very end of the file.  e.g. 9.7 min file with 60 s
+        frames: 9*60 = 540 s used, 9.7*60 - 540 = 42 s tail.
+        Tail ends up inside the last chunk as trailing samples
+        that pad_chunk() will zero-pad for spectrogram display but
+        which will NOT receive their own label row.
 
-        2. Uneven chunk division — if total_complete_frames is not
+        Uneven chunk division — if total_complete_frames is not
            divisible by file_chunk_number, the last chunk gets more
            frames than the others.  e.g. 11 frames across 4 chunks
            gives 2+2+2+5. This is not an error but can surprise users
