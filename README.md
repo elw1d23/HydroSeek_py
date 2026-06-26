@@ -1,5 +1,5 @@
 # hydroseek-python
-<img width="500" height="500" alt="logo" src="https://github.com/user-attachments/assets/3019b4ba-0f52-46ad-ade0-00103d5047e9" />
+<img width="20" height="20" alt="logo" src="https://github.com/user-attachments/assets/3019b4ba-0f52-46ad-ade0-00103d5047e9" />
 
 _Logo created with generative AI (openAI)_
 
