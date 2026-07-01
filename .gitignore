@@ -34,4 +34,7 @@ hydroseek_config_BW.csv
 681896__mbari_mars__blue-whale-d-calls-audible-only-with-appropriate-speakers_Event_labels.csv
 681896__mbari_mars__blue-whale-d-calls-audible-only-with-appropriate-speakers_Event_labels_config.csv
 
+tests/*
+resources/*
+
 *.log

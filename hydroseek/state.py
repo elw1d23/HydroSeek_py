@@ -93,6 +93,9 @@ class AppState:
     current_event_label: str = ""        # free-text tag typed by the user
     event_id_counter: int = 0            # increments globally across the session
 
+    #annoatator id
+    annotator_id: str = ""
+    
     # Display                                                              
     colormap: str = "turbo"   # matplotlib nearest-equivalent to parula
 

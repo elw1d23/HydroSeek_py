@@ -137,20 +137,21 @@ def get_events_for_frame(
     return table[mask].to_dict(orient="records")
 
 
-def export_event_labels(table: pd.DataFrame, audio_filepath: str) -> str:
+def export_event_labels(table: pd.DataFrame, audio_filepath: str, annotator_id: str = "",) -> str:
     """
-    Write the event labels table to <stem>_Event_labels.csv alongside the
-    audio file.  Returns the path written.
+    Writeevent labels table to <stem>_Event_labels{suffix}.csv alongside the
+    audio file
     """
     directory = os.path.dirname(os.path.abspath(audio_filepath))
     stem      = os.path.splitext(os.path.basename(audio_filepath))[0]
-    csv_path  = os.path.join(directory, f"{stem}_Event_labels.csv")
+    suffix    = f"_{annotator_id.strip()}" if annotator_id and annotator_id.strip() else ""
+    csv_path  = os.path.join(directory, f"{stem}_Event_labels{suffix}.csv")
     table.to_csv(csv_path, index=False)
     print(f"Event labels written to {csv_path}")
     return csv_path
 
 
-def export_event_config(state, audio_filepath: str) -> str:
+def export_event_config(state, audio_filepath: str,annotator_id: str = "",) -> str:
     """
     Write spectrogram config for the four labelling plots (Context, A, B, C)
     to <stem>_Event_labels_config.csv alongside the audio file.
@@ -162,7 +163,8 @@ def export_event_config(state, audio_filepath: str) -> str:
     """
     directory = os.path.dirname(os.path.abspath(audio_filepath))
     stem      = os.path.splitext(os.path.basename(audio_filepath))[0]
-    csv_path  = os.path.join(directory, f"{stem}_Event_labels_config.csv")
+    suffix    = f"_{annotator_id.strip()}" if annotator_id and annotator_id.strip() else ""
+    csv_path  = os.path.join(directory, f"{stem}_Event_labels_config{suffix}.csv")
 
     rows = [
         ("CP_WindowSize",  state.windowsize_cp),

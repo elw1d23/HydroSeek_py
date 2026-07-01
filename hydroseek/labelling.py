@@ -96,16 +96,16 @@ def fix_chunk_numbering(
     return table
 
 
-def export_labels(table: pd.DataFrame, audio_filepath: str) -> str:
+def export_labels(table: pd.DataFrame, audio_filepath: str, annotator_id: str = "") -> str:
     """
-    Save the labels table as a CSV file alongside the audio file.
+    Savs labels table as a CSV file in the same directory as audio file.
 
-    The output filename is <audio_stem>_labels.csv, matching the
-    MATLAB writetable call exactly. Returns the path written.
+    The output filename is <audio_stem>_labels_<annotate_id>.csv
     """
     directory = os.path.dirname(os.path.abspath(audio_filepath))
     stem      = os.path.splitext(os.path.basename(audio_filepath))[0]
-    csv_path  = os.path.join(directory, f"{stem}_labels.csv")
+    suffix = f"_{annotator_id.strip()}" if annotator_id and annotator_id.strip() else ""
+    csv_path  = os.path.join(directory, f"{stem}_labels{suffix}.csv")
     table.to_csv(csv_path, index=False)
     print(f"Labels written to {csv_path}")
     return csv_path

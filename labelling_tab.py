@@ -1149,10 +1149,11 @@ class LabellingTab(QWidget):
 
     def _finish_labelling(self) -> None:
         s = self._state
+        annotator_id = getattr(s, "annotator_id", "")
 
         try:
             fixed    = fix_chunk_numbering(s.labels_table, s.label_frame_length)
-            csv_path = export_labels(fixed, s.audio_file_path)
+            csv_path = export_labels(fixed, s.audio_file_path, annotator_id=annotator_id)
         except Exception as exc:
             QMessageBox.critical(
                 self, "Export Error", f"Failed to write labels CSV:\n{exc}"
@@ -1163,7 +1164,7 @@ class LabellingTab(QWidget):
         event_csv_path = None
         if s.event_labels_table is not None:
             try:
-                event_csv_path = export_event_labels(s.event_labels_table, s.audio_file_path)
+                event_csv_path = export_event_labels(s.event_labels_table, s.audio_file_path, annotator_id=annotator_id)
             except Exception as exc:
                 QMessageBox.warning(
                     self, "Export Warning",

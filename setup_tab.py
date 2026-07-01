@@ -1,14 +1,5 @@
 """
 SetupTab — PyQt6 widget for the HydroSeek Set Up tab.
-
-    - Audio file picker (wav / mp3 / flac)
-    - Load config CSV button / Export config CSV button
-    - Spectrogram parameters: Context Plot, Spec A, Spec B, Spec C
-    - Acoustic settings: chunks, frame length, downsample fs, dynamic range
-    - 18 label name fields
-    - Start button
-
-On Start:
      Reads all fields into AppState
      Calls audio.load_audio + audio.chunk_audio
     Calls audio.resample_audio for the downsampled signal
@@ -262,6 +253,34 @@ class SetupTab(QWidget):
             f"color: #3a3a3a; font-size: {_BODY_PX}px; background-color: transparent;"
         )
         right_col.addWidget(self._audio_info_label)
+
+        # Annotator ID row
+        annotator_row = QHBoxLayout()
+        annotator_row.setSpacing(8)
+
+        annotator_lbl = QLabel("Annotator ID:")
+        annotator_lbl.setStyleSheet("background-color: transparent;")
+        annotator_row.addWidget(annotator_lbl)
+
+        self._annotator_edit = QLineEdit()
+        self._annotator_edit.setPlaceholderText("e.g. JRS or user01")
+        self._annotator_edit.setMaxLength(32)
+        self._annotator_edit.setToolTip(
+            "Your initials or user ID.\n"
+            "This will be appended to every output file name so that\n"
+            "multiple annotators can save labels for the same recording\n"
+            "without overwriting each other.\n"
+            "Recommended: use short initials (e.g. JRS) or a user ID (e.g. user01)."
+        )
+        annotator_row.addWidget(self._annotator_edit, stretch=1)
+
+        annotator_note = QLabel("(appended to output filename: use initials or user ID)")
+        annotator_note.setStyleSheet(
+            f"color: #888888; font-size: {_SMALL_PX}px; background-color: transparent;"
+        )
+        annotator_row.addWidget(annotator_note)
+
+        right_col.addLayout(annotator_row)
 
         right_col.addStretch(1)   # pushes content to the top within the column
 
@@ -584,6 +603,13 @@ class SetupTab(QWidget):
         self._read_fields_into_state()
 
         s = self._state
+
+         # If an annotator ID is set, inject it into the suggested filename.
+        if s.annotator_id:
+            base, ext = os.path.splitext(path)
+            if not base.endswith(f"_{s.annotator_id}"):
+                path = f"{base}_{s.annotator_id}{ext}"
+
         values = {
             "File_Chunk_No":       s.file_chunk_number,
             "Frame_Length":        s.label_frame_length,
@@ -609,6 +635,7 @@ class SetupTab(QWidget):
         }
         for i, lbl in enumerate(s.labels, 1):
             values[f"label_{i}"] = lbl
+        values["Annotator_ID"] = s.annotator_id
 
         try:
             export_config(path, values)
@@ -627,6 +654,21 @@ class SetupTab(QWidget):
             return
 
         self._read_fields_into_state()
+
+        # Warn if annotator ID is blank — output files will have no identifier.
+        if not self._state.annotator_id:
+            ret = QMessageBox.question(
+                self,
+                "No Annotator ID",
+                "You have not entered an Annotator ID.\n\n"
+                "Output filenames will not include an identifier, which means\n"
+                "multiple annotators working on the same file will overwrite\n"
+                "each other's labels.\n\n"
+                "Continue without an Annotator ID?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if ret != QMessageBox.StandardButton.Yes:
+                return
 
         # Safety-net labels check (in case the file appeared after browse).
         if check_existing_labels(audio_path):
@@ -672,19 +714,6 @@ class SetupTab(QWidget):
         Returns True if the user wants to proceed, False if they cancel.
 
         Two truncation effects are checked:
-
-        frame tail  — audio that is shorter than one full frame
-        at the very end of the file.  e.g. 9.7 min file with 60 s
-        frames: 9*60 = 540 s used, 9.7*60 - 540 = 42 s tail.
-        Tail ends up inside the last chunk as trailing samples
-        that pad_chunk() will zero-pad for spectrogram display but
-        which will NOT receive their own label row.
-
-        Uneven chunk division — if total_complete_frames is not
-           divisible by file_chunk_number, the last chunk gets more
-           frames than the others.  e.g. 11 frames across 4 chunks
-           gives 2+2+2+5. This is not an error but can surprise users
-           who expect equal chunk sizes.
         """
         duration = getattr(self, "_audio_duration_seconds", 0.0)
         if duration <= 0.0:
@@ -781,7 +810,7 @@ class SetupTab(QWidget):
         s.event_id_counter   = 0
         s.annotation_mode    = "none"
         try:
-            export_event_config(s, audio_path)
+            export_event_config(s, audio_path, annotator_id=s.annotator_id)
         except Exception as exc:
             print(f"Warning: could not write event config CSV: {exc}")
 
@@ -823,6 +852,7 @@ class SetupTab(QWidget):
         s.max_f_sc      = self._sc_f2.value()
 
         s.labels = [edit.text().strip() for edit in self._label_edits]
+        s.annotator_id = self._annotator_edit.text().strip()
 
     def _populate_fields_from_state(self) -> None:
         """Push AppState values back into all UI widgets (called after config load)."""
@@ -858,3 +888,5 @@ class SetupTab(QWidget):
 
         for i, lbl in enumerate(s.labels):
             self._label_edits[i].setText("" if lbl.startswith("NA_") else lbl)
+
+        self._annotator_edit.setText(s.annotator_id)    

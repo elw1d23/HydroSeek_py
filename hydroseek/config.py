@@ -24,7 +24,9 @@ CONFIG_KEYS = [
     "SC_Overlap",
     "SC_F1",
     "SC_F2",
-] + [f"label_{i}" for i in range(1, 19)]
+] + [f"label_{i}" for i in range(1, 19)] + [
+    "Annotator_ID",
+]
 
 # Keys whose values should be parsed as numbers.
 # Label keys are always kept as strings.
@@ -33,12 +35,10 @@ NUMERIC_KEYS = set(CONFIG_KEYS[:21])
 
 def load_config(filepath: str) -> dict:
     """
-    Read a HydroSeek config CSV and return a dict of key → value.
+    Read a HydroSeek config CSV and return a dict of key/ value.
 
     Numeric keys are returned as int or float.
-    Label keys are returned as strings (empty string if blank).
-
-    Equivalent to MATLAB loadConfigFile nested function.
+    Label keys and annotator id are returned as strings (empty string if blank).
     """
     df = pd.read_csv(filepath, dtype=str)
 
@@ -69,7 +69,6 @@ def export_config(filepath: str, values: dict) -> None:
     Keys are written in the canonical CONFIG_KEYS order so the output
     file always matches the format of the supplied hydroseek_config.csv.
 
-    Equivalent to MATLAB ExportButton callback.
     """
     rows = []
     for key in CONFIG_KEYS:
@@ -87,10 +86,6 @@ def config_to_state_kwargs(config: dict) -> dict:
     """
     Convert a loaded config dict into keyword arguments that can be
     passed directly to AppState fields.
-
-    This is the glue layer between config.py and state.py — it maps
-    the CSV key names (e.g. 'SA_WindowSize') to the AppState attribute
-    names (e.g. 'windowsize_sa').
     """
     labels = [config.get(f"label_{i}", "") for i in range(1, 19)]
 
@@ -117,6 +112,7 @@ def config_to_state_kwargs(config: dict) -> dict:
         "min_f_sc":           float(config.get("SC_F1",          10.0)),
         "max_f_sc":           float(config.get("SC_F2",        2000.0)),
         "labels":             labels,
+        "annotator_id":       config.get("Annotator_ID", ""),
     }
 
 
