@@ -1,0 +1,10 @@
+cff-version: 2.0.0
+message: "If you use HydroSeek in your work please cite it as below."
+authors:
+  - family-names: White
+    given-names: Ellen L
+title: "HydroSeek"
+version: 2.0
+doi: 10.5281/zenodo.21128422
+date-released: 2026-07-02
+url: "https://github.com/elw1d23/HydroSeek_py"
