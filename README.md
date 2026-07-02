@@ -5,6 +5,8 @@ _Logo created with generative AI (openAI)_
 
 # HydroSeek
 
+[![DOI](https://zenodo.org/badge/1280467426.svg)](https://doi.org/10.5281/zenodo.21128422)
+
 A PyQt6 desktop application for labelling passive acoustic data
 using spectrograms.
 Allows for binary, multi-class labels with a counting feature, Bounding box annotation and point labels (v2.0)
